@@ -1,0 +1,56 @@
+# 模块9：文件清理器模块
+# 接口定义：
+#   功能: 清理桌面上的旧订单文件
+#   依赖: os, glob
+#   输入: 无
+#   输出: 清理结果和日志信息
+
+import os
+import glob
+
+class 文件清理器:
+    def __init__(self, 日志, 状态回调=None):
+        self.日志 = 日志
+        self.状态回调 = 状态回调
+        self.桌面路径 = os.path.join(os.path.expanduser("~"), "Desktop")
+
+    def _更新状态(self, 消息):
+        """更新状态到GUI和控制台"""
+        if self.状态回调:
+            self.状态回调(消息)
+        self.日志.info(消息)
+
+    def 清理旧订单文件(self):
+        """清理桌面上的旧订单文件"""
+        try:
+            self._更新状态("开始清理旧订单文件...")
+
+            # 查找所有包含"订单导出"的xlsx和png文件
+            xlsx_files = glob.glob(os.path.join(self.桌面路径, "*订单导出*.xlsx"))
+            png_files = glob.glob(os.path.join(self.桌面路径, "*订单导出*.png"))
+
+            删除数量 = 0
+            # 删除xlsx文件
+            for file_path in xlsx_files:
+                try:
+                    os.remove(file_path)
+                    self._更新状态(f"已删除: {os.path.basename(file_path)}")
+                    删除数量 += 1
+                except Exception as e:
+                    self._更新状态(f"删除失败 {os.path.basename(file_path)}: {e}")
+
+            # 删除png文件
+            for file_path in png_files:
+                try:
+                    os.remove(file_path)
+                    self._更新状态(f"已删除: {os.path.basename(file_path)}")
+                    删除数量 += 1
+                except Exception as e:
+                    self._更新状态(f"删除失败 {os.path.basename(file_path)}: {e}")
+
+            self._更新状态(f"清理完成，共删除 {删除数量} 个文件")
+            return 删除数量
+
+        except Exception as e:
+            self._更新状态(f"清理过程中出错: {e}")
+            return 0

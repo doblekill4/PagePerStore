@@ -188,17 +188,25 @@ class DataProcessor:
         return ';'.join(sorted(product_list))
 
     def _extract_product_info_new(self, order):
-        """提取商品信息（新平台版本）"""
-        product_info = ""
+        """提取商品信息（保留换行，彻底去掉空行）"""
         order_items = order.get('orderItemList', [])
+        if not order_items:
+            return "无商品"
 
+        product_list = []
         for item in order_items:
-            product_name = item.get('goodsName', '未知商品')
-            spec = item.get('spec', '无规格')
+            product_name = item.get('goodsName', '未知商品').strip()
+            spec = item.get('spec', '无规格').strip()
             quantity = item.get('quantity', 1)
-            product_info += f"{product_name}-{spec}-{quantity}件\n"
+            product_list.append(f"{product_name}-{spec}-{quantity}件")
 
-        return product_info.strip()
+        # 用\n连接，保留换行，但彻底去掉所有空行
+        product_str = "\n".join(product_list)
+        # 去掉连续换行
+        while "\n\n" in product_str:
+            product_str = product_str.replace("\n\n", "\n")
+        # 去掉首尾空行
+        return product_str.strip()
 
     def _build_full_address_new(self, order):
         """构建完整地址 - 新平台版本"""

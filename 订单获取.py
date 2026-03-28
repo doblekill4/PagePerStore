@@ -1,8 +1,11 @@
-# 订单获取.py - 适配新平台API
+# 订单获取.py - 适配新平台API + 剪贴板数据处理
 import time
 import logging
+import pyperclip
 from datetime import datetime, timedelta
 from 配置 import 配置
+import pandas as pd
+from io import StringIO
 
 
 class OrderFetcher:
@@ -495,3 +498,104 @@ class OrderFetcher:
             time.sleep(1)
 
         return results
+
+    def process_orders_to_clipboard(self, orders, required_fields=None):
+        """
+        处理订单数据，按要求字段整理并写入剪贴板
+        在J列填写"烘焙"，L列填写"13552025004"
+        """
+        if not orders:
+            self.logger.warning("没有订单数据可处理")
+            return False
+
+        # 默认需要的字段（可根据实际需求调整）
+        if required_fields is None:
+            required_fields = [
+                'orderNo', 'receiverName', 'receiverPhone', 'receiverAddress',
+                'paymentAmount', 'order_type', 'delivery_or_pickup_time',
+                'createTime', 'status'
+            ]
+
+        # 创建DataFrame来处理表格数据
+        # 先创建足够多的列（至少L列，即第12列）
+        df = pd.DataFrame()
+
+        # 填充基础订单字段
+        for i, field in enumerate(required_fields):
+            column_letter = chr(65 + i)  # A, B, C...
+            df[column_letter] = [order.get(field, '') for order in orders]
+
+        # 填充J列（第10列）为"烘焙"
+        df['J'] = '烘焙'
+
+        # 填充K列（如果需要，保持为空）
+        if 'K' not in df.columns:
+            df['K'] = ''
+
+        # 填充L列（第12列）为"13552025004"
+        df['L'] = '13552025004'
+
+        # 调整列的顺序，确保A到L列的顺序正确
+        all_columns = []
+        for col in range(ord('A'), ord('L') + 1):
+            col_letter = chr(col)
+            if col_letter in df.columns:
+                all_columns.append(col_letter)
+            else:
+                all_columns.append(col_letter)
+                df[col_letter] = ''
+
+        df = df[all_columns]
+
+        try:
+            # 将DataFrame转换为CSV格式并写入剪贴板
+            csv_buffer = StringIO()
+            df.to_csv(csv_buffer, index=False, header=False, encoding='utf-8-sig')
+            csv_content = csv_buffer.getvalue()
+
+            # 写入剪贴板
+            pyperclip.copy(csv_content)
+
+            self.logger.info(f"成功处理 {len(orders)} 条订单数据并写入剪贴板")
+            self.logger.info(f"J列已填充'烘焙'，L列已填充'13552025004'")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"处理订单数据并写入剪贴板失败: {e}")
+            return False
+
+    def get_orders_and_copy_to_clipboard(self, delivery_date=None, pickup_date=None, status=None):
+        """
+        获取所有订单并直接复制到剪贴板（完整流程）
+        """
+        # 获取所有订单
+        all_orders = self.get_all_orders(delivery_date, pickup_date, status)
+
+        if not all_orders:
+            self.logger.error("未获取到任何订单数据")
+            return False
+
+        # 处理并复制到剪贴板
+        return self.process_orders_to_clipboard(all_orders)
+
+
+# 使用示例
+if __name__ == "__main__":
+    # 假设已经有session、auth_manager等实例
+    # session = requests.Session()
+    # auth_manager = AuthManager()  # 需根据实际实现
+    # base_url = "https://api.example.com/"
+    # headers = {"Content-Type": "application/json"}
+
+    # 创建订单获取器
+    # order_fetcher = OrderFetcher(session, base_url, headers, auth_manager)
+
+    # 获取订单并复制到剪贴板
+    # success = order_fetcher.get_orders_and_copy_to_clipboard()
+
+    # if success:
+    #     print("订单数据已成功复制到剪贴板！")
+    # else:
+    #     print("订单数据复制失败！")
+    pass

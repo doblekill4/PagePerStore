@@ -167,80 +167,8 @@ class 主程序:
                 else:
                     self.日志器.warning(f"  ⚠️ 第{idx + 1}行: 未找到'自提'后缀")
 
-    def 导出到剪贴板(self, processed_data, df):
-        """
-        完整流程（完全复用旧版逻辑）：
-        1. 数据处理后的业务字段（商品名称、配送方式等）
-        2. 添加J列烘焙、L列手机号
-        3. 正确处理TSV换行符（用引号包裹）
-        """
-        self.日志器.info("=" * 50)
-        self.日志器.info("正在复制数据到剪贴板（旧版逻辑+换行修复）...")
-
-        try:
-            import pandas as pd
-            import win32clipboard
-            import io
-            import csv
-
-            # ✅ 1. 用数据处理后的DataFrame（包含商品名称、门店自提/同城快递）
-            final_df = df.copy()
-
-            # ✅ 2. 确保列顺序和旧版一致（11列业务字段）
-            column_order = [
-                '订单序号', '商品名称', '配送方式', '配送或自提时间',
-                '收货人姓名', '收货人手机号', '收货地址', '购买人手机号',
-                '客户留言', '门店签字', '取货人签字'
-            ]
-            final_df = final_df[column_order]
-
-            # ✅ 3. 添加J列（第10列）填"烘焙"
-            final_df.insert(9, 'J_烘焙', '烘焙', allow_duplicates=True)
-
-            # ✅ 4. 添加L列（第12列）填手机号
-            final_df.insert(11, 'L_手机号', '13552025004', allow_duplicates=True)
-
-            # ✅ 5. 只取前12列（A-L）
-            final_df = final_df.iloc[:, :12]
-
-            # ✅ 6. 核心修复：生成TSV时，用引号包裹包含换行符的单元格
-            output = io.StringIO()
-
-            # 使用csv.writer，设置quoting=csv.QUOTE_MINIMAL，自动处理换行符
-            writer = csv.writer(output, delimiter='\t', quotechar='"', quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
-
-            # 写入数据（无表头）
-            for _, row in final_df.iterrows():
-                # 处理每个单元格，确保换行符在引号内
-                processed_row = []
-                for val in row:
-                    val_str = str(val) if pd.notna(val) else ""
-                    processed_row.append(val_str)
-                writer.writerow(processed_row)
-
-            clipboard_data = output.getvalue()
-
-            # ✅ 7. 复制到剪贴板
-            win32clipboard.OpenClipboard()
-            win32clipboard.EmptyClipboard()
-            win32clipboard.SetClipboardText(clipboard_data, win32clipboard.CF_UNICODETEXT)
-            win32clipboard.CloseClipboard()
-
-            self.日志器.info("✅ 数据已复制到剪贴板")
-            self.日志器.info(f"   - 包含：商品名称（保留换行，无空行）")
-            self.日志器.info(f"   - 包含：配送方式（门店自提/同城快递）")
-            self.日志器.info(f"   - J列已填：烘焙")
-            self.日志器.info(f"   - L列已填：13552025004")
-            return True
-
-        except Exception as e:
-            self.日志器.error(f"❌ 复制到剪贴板失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-
     def 执行(self, 查询日期=None, 获取次日=True, 是否导出剪贴板=True):
-        """执行主程序 - 正式生产版"""
+        """执行主程序 - 正式生产版（修复变量名）"""
         try:
             self.日志器.info("=" * 50)
             self.日志器.info("「一店一页」订单数据处理系统 - 正式生产版")
@@ -249,20 +177,24 @@ class 主程序:
             if not self.登录系统():
                 return None
 
+            # ✅ 修复点1：确保这里获取了 orders 变量
             orders = self.获取订单数据(查询日期, 获取次日)
 
             if not orders:
                 self.日志器.warning("未获取到订单数据")
                 return None
 
+            # ✅ 修复点2：确保把 orders 传进去
             result = self.处理订单数据(orders)
             if not result:
                 self.日志器.error("订单数据处理失败")
                 return None
 
-            # 4. 导出到剪贴板（如果需要）
+            # 4. 导出到剪贴板（简洁版）
             if 是否导出剪贴板:
-                self.导出到剪贴板(result['processed_data'], result['df'])
+                self.日志器.info("正在复制数据到剪贴板...")
+                # 直接调用原本的 export_manager，因为 df 里已经有列了
+                self.export_manager.copy_data_to_clipboard(result['df'])
 
             return {
                 'orders': orders,
@@ -279,7 +211,6 @@ class 主程序:
             import traceback
             self.日志器.error(f"详细错误信息:\n{traceback.format_exc()}")
             return None
-
 
 def main(获取次日=True):
     """正式主函数 - 生产环境入口"""

@@ -115,6 +115,15 @@ class DataProcessor:
 
             # 客户留言 - 新平台字段
             customer_remark = order.get('remark', order.get('buyerRemark', '无留言'))
+            if customer_remark is None:
+                customer_remark = ''
+            # 去除可能导致 TSV 换行/列错位的字符
+            customer_remark = str(customer_remark).replace('\r', ' ').replace('\n', ' ').replace('\t', ' ').strip()
+
+            # 确保收货人姓名也没有换行或制表符
+            if receiver_name is None:
+                receiver_name = ''
+            receiver_name = str(receiver_name).replace('\r', ' ').replace('\n', ' ').replace('\t', ' ').strip()
 
             processed_data.append({
                 '订单序号': str(index),
@@ -188,25 +197,43 @@ class DataProcessor:
         return ';'.join(sorted(product_list))
 
     def _extract_product_info_new(self, order):
-        """提取商品信息（保留换行，彻底去掉空行）"""
+        """提取商品信息：
+        - 当订单内商品数量大于2时，返回多行字符串（每个商品一行），保留真实换行符 \n，以便在单元格内换行显示；
+        - 否则返回单行，用中文分号 '；' 连接。
+        会清理掉 CR 和制表符，但保留实际的换行（当需要多行时）。
+        """
         order_items = order.get('orderItemList', [])
         if not order_items:
-            return "无商品"
+            return '无商品'
 
-        product_list = []
+        product_parts = []
         for item in order_items:
-            product_name = item.get('goodsName', '未知商品').strip()
-            spec = item.get('spec', '无规格').strip()
-            quantity = item.get('quantity', 1)
-            product_list.append(f"{product_name}-{spec}-{quantity}件")
+            name = item.get('goodsName', '') or ''
+            spec = item.get('spec', '') or ''
+            quantity = item.get('quantity', 1) or 1
 
-        # 用\n连接，保留换行，但彻底去掉所有空行
-        product_str = "\n".join(product_list)
-        # 去掉连续换行
-        while "\n\n" in product_str:
-            product_str = product_str.replace("\n\n", "\n")
-        # 去掉首尾空行
-        return product_str.strip()
+            name = str(name).strip()
+            spec = str(spec).strip()
+
+            if spec:
+                part = f"{name}-{spec}-{quantity}件"
+            else:
+                part = f"{name}-{quantity}件"
+
+            # 清理掉回车和制表符，但保留真实换行（当我们需要在单元格内换行时）
+            part = part.replace('\r', ' ').replace('\t', ' ').strip()
+            # 不去掉 '\n' 这里，后续将根据数量决定是否保留换行
+            product_parts.append(part)
+
+        # 如果订单内商品较多（>2），按设计返回多行字符串（每个商品一行），保留真实换行符 \n，
+        # 以便在粘贴到表格时在单元格内显示为多行；否则返回单行，用中文分号 '；' 连接。
+        if len(product_parts) > 2:
+            product_line = '\n'.join(product_parts)
+            # 保留真实换行，但去掉多余的 CR/TAB
+            return product_line.replace('\r', ' ').replace('\t', ' ').strip()
+        else:
+            product_line = '；'.join(product_parts)
+            return product_line.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ').strip()
 
     def _build_full_address_new(self, order):
         """构建完整地址 - 新平台版本"""
@@ -230,15 +257,37 @@ class DataProcessor:
         return ''.join(address_parts)
 
     def create_dataframe(self, processed_data):
-        """创建DataFrame"""
-        column_order = [
-            '订单序号', '商品名称', '配送方式', '配送或自提时间',
-            '收货人姓名', '收货人手机号', '收货地址', '购买人手机号',
-            '客户留言', '门店签字', '取货人签字'
+        """创建DataFrame，精准插入J列和L列"""
+        # 基础列顺序（对应A-I列、K列、M列）
+        base_columns = [
+            '订单序号',      # A列（索引0）
+            '商品名称',      # B列（索引1）
+            '配送方式',      # C列（索引2）
+            '配送或自提时间', # D列（索引3）
+            '收货人姓名',    # E列（索引4）
+            '收货人手机号',  # F列（索引5）
+            '收货地址',      # G列（索引6）
+            '购买人手机号',  # H列（索引7）
+            '客户留言',      # I列（索引8）
+            '门店签字',      # K列（原索引9，插入后变成索引10）
+            '取货人签字'     # M列（原索引10，插入后变成索引12）
         ]
 
+        # 生成基础DataFrame
         df = pd.DataFrame(processed_data)
-        return df[column_order]
+        df = df[base_columns].fillna('') # 填充空值，避免NaN
+
+        # ✅ 精准插入J列（第10列，索引9），内容为"烘焙"
+        df.insert(loc=9, column='烘焙', value='烘焙')
+
+        # ✅ 精准插入L列（第12列，索引11），内容为手机号
+        df.insert(loc=11, column='手机号', value='13552025004')
+
+        # 确保所有列为字符串，且把可能的 'nan'/'NaN' 字符串替换为空，避免导出时出现 NaN 文本
+        df = df.fillna('').astype(str)
+        df = df.replace({'^nan$': '', '^NaN$': ''}, regex=True)
+
+        return df
 
     def get_date_strings(self, use_today=False):
         """获取日期字符串"""

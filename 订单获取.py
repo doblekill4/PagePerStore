@@ -6,6 +6,10 @@ from datetime import datetime, timedelta
 from 配置 import 配置
 import pandas as pd
 from io import StringIO
+import csv
+import io
+import json
+import os
 
 
 class OrderFetcher:
@@ -110,6 +114,15 @@ class OrderFetcher:
             if orders:
                 all_orders.extend(orders)
 
+        # Debug: dump delivery raw orders
+        try:
+            dbg_path = os.path.join(os.getcwd(), 'orders_delivery_raw_debug.json')
+            with open(dbg_path, 'w', encoding='utf-8') as f:
+                json.dump(all_orders, f, ensure_ascii=False, indent=2)
+            self.logger.info(f"已将配送订单原始数据写入调试文件: {dbg_path}")
+        except Exception as e:
+            self.logger.warning(f"写入配送订单调试文件失败: {e}")
+
         # 为配送订单添加配送时间信息和订单类型标记
         for order in all_orders:
             # 从订单数据中提取配送时间
@@ -174,6 +187,15 @@ class OrderFetcher:
             orders = self._fetch_orders(order_url, order_data, max_retries, f"自提-状态{status_value}")
             if orders:
                 all_orders.extend(orders)
+
+        # Debug: dump pickup raw orders
+        try:
+            dbg_path = os.path.join(os.getcwd(), 'orders_pickup_raw_debug.json')
+            with open(dbg_path, 'w', encoding='utf-8') as f:
+                json.dump(all_orders, f, ensure_ascii=False, indent=2)
+            self.logger.info(f"已将自提订单原始数据写入调试文件: {dbg_path}")
+        except Exception as e:
+            self.logger.warning(f"写入自提订单调试文件失败: {e}")
 
         # 为自提订单添加自提时间信息和订单类型标记
         for order in all_orders:
@@ -336,6 +358,16 @@ class OrderFetcher:
 
         if len(valid_orders) < len(all_orders):
             self.logger.warning(f"过滤掉 {len(all_orders) - len(valid_orders)} 条取消状态订单")
+
+        # Debug: dump raw fetched orders to a file for inspection
+        try:
+            debug_path = os.path.join(os.getcwd(), 'orders_raw_debug.json')
+            # Write the original all_orders (not filtered) so we can inspect API response
+            with open(debug_path, 'w', encoding='utf-8') as f:
+                json.dump(all_orders, f, ensure_ascii=False, indent=2)
+            self.logger.info(f"已将原始订单数据写入调试文件: {debug_path}")
+        except Exception as e:
+            self.logger.warning(f"写入原始订单调试文件失败: {e}")
 
         return valid_orders
 
@@ -516,49 +548,30 @@ class OrderFetcher:
                 'createTime', 'status'
             ]
 
-        # 创建DataFrame来处理表格数据
-        # 先创建足够多的列（至少L列，即第12列）
-        df = pd.DataFrame()
-
-        # 填充基础订单字段
-        for i, field in enumerate(required_fields):
-            column_letter = chr(65 + i)  # A, B, C...
-            df[column_letter] = [order.get(field, '') for order in orders]
-
-        # 填充J列（第10列）为"烘焙"
-        df['J'] = '烘焙'
-
-        # 填充K列（如果需要，保持为空）
-        if 'K' not in df.columns:
-            df['K'] = ''
-
-        # 填充L列（第12列）为"13552025004"
-        df['L'] = '13552025004'
-
-        # 调整列的顺序，确保A到L列的顺序正确
-        all_columns = []
-        for col in range(ord('A'), ord('L') + 1):
-            col_letter = chr(col)
-            if col_letter in df.columns:
-                all_columns.append(col_letter)
-            else:
-                all_columns.append(col_letter)
-                df[col_letter] = ''
-
-        df = df[all_columns]
-
+        # 使用 DataProcessor 的逻辑来生成最终导出 DataFrame，保持与主程序一致
         try:
-            # 将DataFrame转换为CSV格式并写入剪贴板
-            csv_buffer = StringIO()
-            df.to_csv(csv_buffer, index=False, header=False, encoding='utf-8-sig')
-            csv_content = csv_buffer.getvalue()
+            from 数据处理 import DataProcessor
 
-            # 写入剪贴板
-            pyperclip.copy(csv_content)
+            dp = DataProcessor(self.logger)
+            processed_data = dp.process_orders_for_export(orders)
+            df = dp.create_dataframe(processed_data)
 
-            self.logger.info(f"成功处理 {len(orders)} 条订单数据并写入剪贴板")
-            self.logger.info(f"J列已填充'烘焙'，L列已填充'13552025004'")
+            # 导出为 TSV 文本，保留引号以包裹包含换行的字段
+            output = io.StringIO()
+            df.to_csv(output, index=False, sep='\t', header=False, quoting=csv.QUOTE_MINIMAL)
+            tsv_text = output.getvalue()
 
+            # 使用 win32clipboard 写入（优先），回退到 pyperclip
+            try:
+                import win32clipboard
+                win32clipboard.OpenClipboard()
+                win32clipboard.EmptyClipboard()
+                win32clipboard.SetClipboardText(tsv_text, win32clipboard.CF_UNICODETEXT)
+                win32clipboard.CloseClipboard()
+            except Exception:
+                pyperclip.copy(tsv_text)
+
+            self.logger.info(f"成功处理 {len(orders)} 条订单数据并写入剪贴板 (使用 DataProcessor 生成)")
             return True
 
         except Exception as e:
@@ -582,20 +595,5 @@ class OrderFetcher:
 
 # 使用示例
 if __name__ == "__main__":
-    # 假设已经有session、auth_manager等实例
-    # session = requests.Session()
-    # auth_manager = AuthManager()  # 需根据实际实现
-    # base_url = "https://api.example.com/"
-    # headers = {"Content-Type": "application/json"}
 
-    # 创建订单获取器
-    # order_fetcher = OrderFetcher(session, base_url, headers, auth_manager)
-
-    # 获取订单并复制到剪贴板
-    # success = order_fetcher.get_orders_and_copy_to_clipboard()
-
-    # if success:
-    #     print("订单数据已成功复制到剪贴板！")
-    # else:
-    #     print("订单数据复制失败！")
     pass

@@ -58,7 +58,7 @@ class 任务执行器:
             return False
 
     def 执行顺丰同步(self, 是今日订单=True):
-        """WPS在线表格同步（正式版）"""
+        """WPS在线表格同步（修复版：正确解析TSV）"""
         try:
             self._更新状态("开始WPS在线表格后台同步...")
             self._更新状态(f"订单类型: {'今日订单' if 是今日订单 else '次日订单'}")
@@ -68,16 +68,62 @@ class 任务执行器:
             clipboard_data = win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT)
             win32clipboard.CloseClipboard()
 
-            data_lines = [line.strip() for line in clipboard_data.split('\n') if line.strip()]
+            # ✅ 修复点1：定义包含 J列 和 L列 的完整表头
+            # 顺序必须与主程序导出的顺序完全一致 (A 到 L)
             col_order = [
-                '订单序号', '商品名称', '配送方式', '配送或自提时间',
-                '收货人姓名', '收货人手机号', '收货地址', '购买人手机号',
-                '客户留言', '门店签字', '取货人签字'
+                '订单序号',  # A
+                '商品名称',  # B
+                '配送方式',  # C
+                '配送或自提时间',  # D
+                '收货人姓名',  # E
+                '收货人手机号',  # F
+                '收货地址',  # G
+                '购买人手机号',  # H
+                '客户留言',  # I
+                '烘焙',  # J (新增)
+                '门店签字',  # K
+                '手机号'  # L (新增)
             ]
-            data_list = [dict(zip(col_order, line.split('\t'))) for line in data_lines]
 
-            self._更新状态(f"✅ 成功读取 {len(data_list)} 条订单数据")
-            sync_success = wps_append_data(data_list, is_today_order=是今日订单)
+            # ✅ 修复点2：使用 pandas 正确解析 TSV
+            # pandas 会自动处理被双引号包裹的换行符（即商品名称里的换行）
+            import pandas as pd
+            import io
+
+            # 读取剪贴板数据
+            # sep='\t': 制表符分隔
+            # header=None: 没有表头
+            # quoting=1: 识别引号内的内容为一个整体
+            df = pd.read_csv(
+                io.StringIO(clipboard_data),
+                sep='\t',
+                header=None,
+                quoting=1,
+                dtype=str  # 全部读为字符串，防止手机号变科学计数法
+            )
+
+            # 填充空值为 空字符串
+            df = df.fillna('')
+
+            # ✅ 修复点3：确保列数匹配
+            # 如果实际列数多于预期，只取前 len(col_order) 列
+            # 如果实际列数少于预期，后面补空列
+            if len(df.columns) > len(col_order):
+                df = df.iloc[:, :len(col_order)]
+
+            # 重命名列
+            df.columns = col_order[:len(df.columns)]
+
+            # 转换为字典列表
+            data_list = df.to_dict('records')
+
+            self._更新状态(f"✅ 成功解析 {len(data_list)} 条订单数据")
+
+            # ✅ 修复点4：传入 data_list
+            from wps_playwright import wps_append_data
+            # 使用旧版粘贴行为（一次性将 TSV 放入剪贴板并 Ctrl+V）以保持与旧客户端一致的粘贴效果
+            # Use standard Ctrl+V for legacy paste (many web editors ignore Ctrl+Shift+V)
+            sync_success = wps_append_data(data_list, is_today_order=是今日订单, use_legacy_paste=True, paste_as_values=False)
 
             if sync_success:
                 self._更新状态("✅ WPS在线表格同步完成")

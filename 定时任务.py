@@ -282,9 +282,7 @@ class 订单调度器GUI:
             日期范围 = select_date_range(self.窗口)
 
             if 日期范围:
-                start_date, end_date = 日期范围
-                start_date_str = start_date.strftime('%Y-%m-%d')
-                end_date_str = end_date.strftime('%Y-%m-%d')
+                start_date_str, end_date_str = 日期范围
 
                 self.更新状态(f"选择支付时间范围: {start_date_str} 到 {end_date_str}")
                 self.更新状态("开始查询订单数据...")

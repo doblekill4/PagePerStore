@@ -1,0 +1,18 @@
+{
+  "平台": {
+    "用户名": "在此填入平台登录账号",
+    "密码": "在此填入平台登录密码",
+    "门店ID": "在此填入门店ID",
+    "BASE_URL": "https://wxapp.trtjkmall.com"
+  },
+  "邮件": {
+    "SMTP_SERVER": "smtp.qq.com",
+    "SMTP_PORT": 465,
+    "SENDER_EMAIL": "在此填入发件邮箱",
+    "AUTHORIZATION_CODE": "在此填入邮箱授权码",
+    "RECIPIENTS": ["在此填入收件邮箱"]
+  },
+  "路径": {
+    "日志目录": ""
+  }
+}

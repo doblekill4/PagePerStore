@@ -197,10 +197,8 @@ class DataProcessor:
         return ';'.join(sorted(product_list))
 
     def _extract_product_info_new(self, order):
-        """提取商品信息：
-        - 当订单内商品数量大于2时，返回多行字符串（每个商品一行），保留真实换行符 \n，以便在单元格内换行显示；
-        - 否则返回单行，用中文分号 '；' 连接。
-        会清理掉 CR 和制表符，但保留实际的换行（当需要多行时）。
+        """提取商品信息：每个商品一行，用真实换行符 \n 连接，在单元格内换行显示。
+        会清理掉 CR 和制表符，保留换行。
         """
         order_items = order.get('orderItemList', [])
         if not order_items:
@@ -225,15 +223,10 @@ class DataProcessor:
             # 不去掉 '\n' 这里，后续将根据数量决定是否保留换行
             product_parts.append(part)
 
-        # 如果订单内商品较多（>2），按设计返回多行字符串（每个商品一行），保留真实换行符 \n，
-        # 以便在粘贴到表格时在单元格内显示为多行；否则返回单行，用中文分号 '；' 连接。
-        if len(product_parts) > 2:
-            product_line = '\n'.join(product_parts)
-            # 保留真实换行，但去掉多余的 CR/TAB
-            return product_line.replace('\r', ' ').replace('\t', ' ').strip()
-        else:
-            product_line = '；'.join(product_parts)
-            return product_line.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ').strip()
+        # 所有多商品订单统一用真实换行符连接，保证表格内逐项换行显示；
+        # 不再按商品数量切换成中文分号
+        product_line = '\n'.join(product_parts)
+        return product_line.replace('\r', ' ').replace('\t', ' ').strip()
 
     def _build_full_address_new(self, order):
         """构建完整地址 - 新平台版本"""

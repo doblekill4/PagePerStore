@@ -1,11 +1,5 @@
 # 模块5：导出模块 - 新平台版本
 import logging
-import os
-import time
-from pathlib import Path
-
-import pandas as pd
-from openpyxl.styles import Border, Side
 import csv
 import io
 

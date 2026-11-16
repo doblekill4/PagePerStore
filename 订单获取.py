@@ -1,13 +1,8 @@
 # 订单获取.py - 适配新平台API + 剪贴板数据处理
 import time
 import logging
-import pyperclip
 from datetime import datetime, timedelta
 from 配置 import 配置
-import pandas as pd
-from io import StringIO
-import csv
-import io
 import json
 import os
 
@@ -26,16 +21,9 @@ class OrderFetcher:
             self.setup_logging()
 
     def setup_logging(self):
-        """设置日志记录"""
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler("order_fetcher.log", encoding='utf-8'),
-                logging.StreamHandler()
-            ]
-        )
-        self.logger = logging.getLogger(__name__)
+        """设置日志记录（统一到 日志管理：同目录、按天分文件、保留近 N 天）"""
+        from 日志管理 import 获取日志器
+        self.logger = 获取日志器("订单获取")
 
     def 日期转时间戳(self, 日期字符串):
         """将日期字符串转换为时间戳（毫秒）"""

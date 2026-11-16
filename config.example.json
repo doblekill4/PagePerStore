@@ -13,6 +13,27 @@
     "RECIPIENTS": ["在此填入收件邮箱"]
   },
   "路径": {
-    "日志目录": ""
+    "日志目录": "",
+    "日志保留天数": 30
+  },
+  "WPS": {
+    "模式": "airscript",
+    "webhook": "https://www.kdocs.cn/api/v3/ide/file/在此填入file_id/script/在此填入script_id/sync_task",
+    "token": "在此填入AirScript脚本令牌",
+    "sheet_name": "服务一店一页",
+    "timeout": 60,
+    "dedup": false,
+    "numeric_columns": [],
+    "start_row": null
+  },
+  "WPS_KDOCS": {
+    "enabled": true,
+    "cli_path": "",
+    "file_id": "",
+    "link_id": "ceIalhfmfGZ6",
+    "sheet_id": 4,
+    "sheet_name": "服务一店一页",
+    "tail_rows": 200,
+    "timeout": 90
   }
 }

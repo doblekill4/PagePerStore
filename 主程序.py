@@ -1,7 +1,7 @@
 # 模块1：主程序入口 - 正式生产版
 import requests
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from 认证管理 import AuthManager
 from 订单获取 import OrderFetcher
@@ -32,27 +32,9 @@ class 主程序:
         self.export_manager = ExportManager(self.日志器)
 
     def 设置日志(self):
-        """设置日志记录"""
-        import os
-        日志目录 = 配置.获取日志目录()
-        os.makedirs(日志目录, exist_ok=True)
-
-        self.日志器 = logging.getLogger('主程序')
-        self.日志器.setLevel(logging.INFO)
-
-        if self.日志器.handlers:
-            self.日志器.handlers.clear()
-
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        self.日志器.addHandler(console_handler)
-
-        日志文件 = os.path.join(日志目录, f"主程序_{datetime.now().strftime('%Y%m%d')}.log")
-        file_handler = logging.FileHandler(日志文件, encoding='utf-8')
-        file_handler.setFormatter(formatter)
-        self.日志器.addHandler(file_handler)
+        """设置日志记录（统一到 日志管理：同目录、按天分文件、保留近 N 天）"""
+        from 日志管理 import 获取日志器
+        self.日志器 = 获取日志器("主程序")
 
     def 登录系统(self):
         """登录系统"""

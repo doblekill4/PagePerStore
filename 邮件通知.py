@@ -123,7 +123,7 @@ class 邮件通知器:
         发送成功通知
         :param 任务描述: 任务描述，如"次日订单同步完成"
         """
-        subject = f"【订单系统】{任务描述}"
+        subject = f"【PagePerStore】{任务描述}"
         content = f"""
 任务类型: {任务描述}
 执行结果: 成功
@@ -139,7 +139,7 @@ class 邮件通知器:
         发送失败通知
         :param 错误描述: 错误描述信息
         """
-        subject = "【订单系统】任务失败"
+        subject = "【PagePerStore】任务失败"
         content = f"""
 任务执行失败
 
@@ -155,7 +155,7 @@ class 邮件通知器:
 
     def 发送测试邮件(self):
         """发送测试邮件"""
-        subject = "【订单系统】测试邮件"
+        subject = "【PagePerStore】测试邮件"
         content = f"""
 这是一封测试邮件
 

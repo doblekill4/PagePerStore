@@ -1,6 +1,6 @@
 import requests
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import pandas as pd
 import tkinter as tk

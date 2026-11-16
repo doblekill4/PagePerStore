@@ -80,19 +80,17 @@ class 订单调度器GUI:
     def 获取日志器(self):
         return self.日志 if hasattr(self, '日志') else logging.getLogger(__name__)
 
+    def 当前日志路径(self):
+        try:
+            from 日志管理 import 当前日志文件
+            return 当前日志文件("订单调度器")
+        except Exception:
+            return "程序目录/日志/订单调度器_日期.log"
+
     def 设置日志(self):
-        log_dir = r"D:\一店一页"
-        os.makedirs(log_dir, exist_ok=True)
-        self.日志 = logging.getLogger('订单调度器')
-        if not self.日志.handlers:
-            self.日志.setLevel(logging.INFO)
-            file_handler = logging.FileHandler(os.path.join(log_dir, "订单调度器.log"), encoding='utf-8')
-            console_handler = logging.StreamHandler()
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            console_handler.setFormatter(formatter)
-            self.日志.addHandler(file_handler)
-            self.日志.addHandler(console_handler)
+        from 日志管理 import 获取日志器
+        # 统一到 config 指定目录，按天分文件、保留近 N 天（原为硬编码 D:\一店一页\订单调度器.log）
+        self.日志 = 获取日志器("订单调度器")
 
     def 创建界面(self):
         self.窗口 = tk.Tk()
@@ -146,14 +144,18 @@ class 订单调度器GUI:
         button_frame2 = ttk.Frame(main_frame)
         button_frame2.pack(fill=tk.X, pady=(0, 10))
         self.导出次日按钮 = ttk.Button(button_frame2, text="导出次日订单",
-                                       command=lambda: threading.Thread(target=self._执行智能订单导出,
-                                                                        daemon=True).start(),
+                                       command=lambda: threading.Thread(
+                                           target=self._执行智能订单导出,
+                                           kwargs={"是次日订单": True},
+                                           daemon=True).start(),
                                        width=15)
         self.导出次日按钮.pack(side=tk.LEFT, padx=(0, 10))
 
         self.更新今日按钮 = ttk.Button(button_frame2, text="更新今日订单",
-                                       command=lambda: threading.Thread(target=self._执行智能订单导出,
-                                                                        daemon=True).start(),
+                                       command=lambda: threading.Thread(
+                                           target=self._执行智能订单导出,
+                                           kwargs={"是次日订单": False},
+                                           daemon=True).start(),
                                        width=15)
         self.更新今日按钮.pack(side=tk.LEFT)
 
@@ -225,9 +227,35 @@ class 订单调度器GUI:
             订单类型 = "次日" if 是次日订单 else "今日"
             self.更新状态(f"开始执行{订单类型}订单任务...")
 
-            # 1. 导出订单到剪贴板（3.0：主程序负责抓取+处理+写入剪贴板）
+            # 同步通道：优先 kdocs-cli（读表清洗后只写增量，纯后台），
+            # 其次 AirScript，最后回退浏览器粘贴
+            try:
+                from wps_kdocs import 配置就绪 as Kdocs就绪
+                使用Kdocs = Kdocs就绪()
+            except Exception as e:
+                self.更新状态(f"⚠️ kdocs-cli 通道不可用：{e}")
+                使用Kdocs = False
+
+            try:
+                from wps_airscript import 配置就绪 as AirScript就绪
+                使用AirScript = (not 使用Kdocs) and AirScript就绪()
+            except Exception:
+                使用AirScript = False
+
+            if 使用Kdocs:
+                同步方式 = "kdocs-cli后台增量写入"
+            elif 使用AirScript:
+                同步方式 = "AirScript后台写入"
+            else:
+                同步方式 = "浏览器粘贴"
+            self.更新状态(f"WPS 同步方式：{同步方式}")
+
+            # 1. 抓取并处理订单（后台链路直接传 DataFrame，不经过系统剪贴板）
             from 主程序 import 主程序
-            订单结果 = 主程序(self.获取日志器()).执行(获取次日=是次日订单, 是否导出剪贴板=True)
+            订单结果 = 主程序(self.获取日志器()).执行(
+                获取次日=是次日订单,
+                是否导出剪贴板=not (使用Kdocs or 使用AirScript),
+            )
             订单导出成功 = bool(订单结果)
 
             if not 订单导出成功:
@@ -237,16 +265,33 @@ class 订单调度器GUI:
                     self.邮件通知器.发送失败通知(f"{订单类型}订单导出失败")
                 return False
 
-            # 2. 同步到WPS（3.0：wps_playwright 从剪贴板读取并粘贴到顺丰表格）
-            from wps_playwright import wps_append_data
-            self.更新状态(f"开始同步{订单类型}订单到顺丰表格...")
-            同步成功 = wps_append_data(is_today_order=not 是次日订单)
+            # 2. 同步到WPS
+            self.更新状态(f"开始同步{订单类型}订单到顺丰表格（{同步方式}）...")
+            失败原因 = ""
+            if 使用Kdocs:
+                import wps_kdocs
+                # 手动点按钮：token 失效直接拉起 CLI 登录；定时自动：只发邮件不弹窗
+                同步成功 = wps_kdocs.wps_append_data(df=订单结果['df'], 日志器=self.获取日志器(),
+                                                  是否手动=是否手动)
+                if not 同步成功:
+                    失败原因 = wps_kdocs.最后失败原因
+            elif 使用AirScript:
+                from wps_airscript import wps_append_data as AirScript追加
+                同步成功 = AirScript追加(df=订单结果['df'], 日志器=self.获取日志器())
+                if not 同步成功:
+                    失败原因 = f"AirScript 后台写入未成功，请查看日志 {self.当前日志路径()}"
+            else:
+                from wps_playwright import wps_append_data
+                同步成功 = wps_append_data(is_today_order=not 是次日订单)
+                if not 同步成功:
+                    失败原因 = f"浏览器粘贴写入未成功，请查看日志 {self.当前日志路径()}"
 
             if 同步成功:
                 self.更新状态(f"✅ {订单类型}订单已同步到顺丰表格")
                 return True
             else:
-                self.更新状态(f"❌ {订单类型}订单同步失败")
+                self.更新状态(f"❌ {订单类型}订单同步失败：{失败原因}" if 失败原因
+                              else f"❌ {订单类型}订单同步失败")
                 return False
 
         except Exception as e:
@@ -257,18 +302,21 @@ class 订单调度器GUI:
         finally:
             self._启用所有按钮()
 
-    def _执行智能订单导出(self):
-        """手动执行智能订单导出（根据当前时间判断，手动运行，弹窗，不发邮件）"""
-        try:
-            now = datetime.now()
-            current_hour = now.hour
+    def _执行智能订单导出(self, 是次日订单=None):
+        """手动按钮入口：由按钮显式指定今日/次日，不再按当前时间猜测。
 
-            if current_hour >= 17:
-                self.更新状态(f"当前时间 {now.strftime('%H:%M')}，17点后，手动执行次日订单导出")
-                return self._执行完整流程(是次日订单=True, 是否手动=True, 是否静默=False)
+        定时任务的智能判断保留在 智能执行任务() 中，仅用于自动调度；
+        未传参数时仍按时间判断，以兼容旧调用。
+        """
+        try:
+            if 是次日订单 is None:
+                now = datetime.now()
+                是次日订单 = now.hour >= 17
+                self.更新状态(f"当前时间 {now.strftime('%H:%M')}，按时间判断执行"
+                              f"{'次日' if 是次日订单 else '今日'}订单导出")
             else:
-                self.更新状态(f"当前时间 {now.strftime('%H:%M')}，17点前，手动执行今日订单导出")
-                return self._执行完整流程(是次日订单=False, 是否手动=True, 是否静默=False)
+                self.更新状态(f"手动执行{'次日' if 是次日订单 else '今日'}订单导出")
+            return self._执行完整流程(是次日订单=是次日订单, 是否手动=True, 是否静默=False)
 
         except Exception as e:
             self.更新状态(f"❌ 手动执行失败: {e}")
@@ -501,5 +549,7 @@ if __name__ == "__main__":
     except Exception as e:
         import traceback
 
-        with open("启动错误.log", "w", encoding="utf-8") as f:
-            f.write(f"{e}\n{traceback.format_exc()}")
+        # 原为 "w" 覆盖：每次启动失败都冲掉上一次，导致无法追溯。改为按天追加。
+        from 日志管理 import 获取日志器
+        错误日志 = 获取日志器("启动错误")
+        错误日志.error(f"程序启动失败: {e}\n{traceback.format_exc()}")

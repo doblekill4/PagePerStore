@@ -98,6 +98,7 @@ def 收集必要信息(缺失项=None):
         ('邮箱授权码', '邮件.AUTHORIZATION_CODE', True),
         ('收件邮箱(多个用逗号分隔)', '邮件.RECIPIENTS', False),
         ('日志目录(留空则用程序目录/日志)', '路径.日志目录', False),
+        ('日志保留天数(默认30)', '路径.日志保留天数', False),
     ]
 
     变量 = {}
@@ -157,9 +158,16 @@ def 收集必要信息(缺失项=None):
                 "RECIPIENTS": 收件人,
             },
             "路径": {
-                "日志目录": 变量['路径.日志目录'].get().strip()
+                "日志目录": 变量['路径.日志目录'].get().strip(),
+                "日志保留天数": int(变量['路径.日志保留天数'].get().strip() or 30)
+                                if 变量['路径.日志保留天数'].get().strip().isdigit() else 30,
             },
         }
+        # 保留向导未涉及的扩展配置（如 WPS AirScript 后台写入），避免重写 config.json 时丢失
+        for 键, 值 in 已有.items():
+            if 键 not in 数据:
+                数据[键] = 值
+
         结果['数据'] = 数据
         对话框.destroy()
 

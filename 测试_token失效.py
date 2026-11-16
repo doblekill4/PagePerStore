@@ -187,6 +187,33 @@ class Token失效测试(unittest.TestCase):
         self.assertTrue(any(原因 in 文本 and "同步失败" in 文本 for 文本 in 界面.状态),
                         f"状态栏未显示失败原因: {界面.状态}")
 
+    def test_ui_status_shows_export_failure_reason(self):
+        """导出失败（如当日 0 单）时，状态栏显示主程序带出的具体原因。"""
+        import 主程序 as 主程序模块
+        import 定时任务 as 定时任务模块
+
+        class 假界面:
+            def __init__(self):
+                self.邮件通知器 = None
+                self.状态 = []
+            def _禁用所有按钮(self): pass
+            def _启用所有按钮(self): pass
+            def 更新状态(self, 文本): self.状态.append(文本)
+            def 获取日志器(self): return None
+
+        原因 = "未获取到订单数据（平台当日无符合条件的配送/自提订单）"
+        假主程序 = type("假主程序", (), {
+            "执行": lambda self, **kw: None,
+            "最后失败原因": 原因,
+        })()
+        with patch.object(主程序模块, "主程序", return_value=假主程序), \
+             patch.object(wps_kdocs, "配置就绪", return_value=True):
+            界面 = 假界面()
+            成功 = 定时任务模块.订单调度器GUI._执行完整流程(界面, 是否手动=True)
+        self.assertFalse(成功)
+        self.assertTrue(any(原因 in 文本 and "导出失败" in 文本 for 文本 in 界面.状态),
+                        f"状态栏未显示导出失败原因: {界面.状态}")
+
     def test_relogin_restores_counter(self):
         """重登记录新有效期后，失效标记清除、计数重新开始。"""
         with tempfile.TemporaryDirectory() as 目录:

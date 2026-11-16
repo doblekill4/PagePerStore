@@ -14,6 +14,7 @@ from 配置 import 配置
 class 主程序:
     def __init__(self, 日志器=None):
         """初始化主程序"""
+        self.最后失败原因 = ""
         if 日志器:
             self.日志器 = 日志器
         else:
@@ -157,25 +158,29 @@ class 主程序:
 
     def 执行(self, 查询日期=None, 获取次日=True, 是否导出剪贴板=True):
         """执行主程序 - 正式生产版（修复变量名）"""
+        self.最后失败原因 = ""
         try:
             self.日志器.info("=" * 50)
             self.日志器.info("「一店一页」订单数据处理系统 - 正式生产版")
             self.日志器.info("=" * 50)
 
             if not self.登录系统():
+                self.最后失败原因 = "登录平台系统失败（账号/密码或网络问题）"
                 return None
 
             # ✅ 修复点1：确保这里获取了 orders 变量
             orders = self.获取订单数据(查询日期, 获取次日)
 
             if not orders:
-                self.日志器.warning("未获取到订单数据")
+                self.最后失败原因 = "未获取到订单数据（平台当日无符合条件的配送/自提订单）"
+                self.日志器.warning(self.最后失败原因)
                 return None
 
             # ✅ 修复点2：确保把 orders 传进去
             result = self.处理订单数据(orders)
             if not result:
-                self.日志器.error("订单数据处理失败")
+                self.最后失败原因 = "订单数据处理失败"
+                self.日志器.error(self.最后失败原因)
                 return None
 
             # 4. 导出到剪贴板（简洁版）
@@ -195,7 +200,8 @@ class 主程序:
             }
 
         except Exception as e:
-            self.日志器.error(f"❌ 主程序执行失败: {e}")
+            self.最后失败原因 = f"主程序执行异常: {e}"
+            self.日志器.error(f"❌ {self.最后失败原因}")
             import traceback
             self.日志器.error(f"详细错误信息:\n{traceback.format_exc()}")
             return None

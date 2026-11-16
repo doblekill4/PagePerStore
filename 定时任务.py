@@ -16,7 +16,7 @@ from 邮件通知 import 邮件通知器  # 新增
 from 配置向导 import 确保配置已完整
 from 配置 import 配置
 
-版本号 = "v3.1.0"
+版本号 = "v3.3.0"
 
 
 class 订单调度器GUI:

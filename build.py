@@ -57,7 +57,6 @@ def 强制打包():
         '--clean',
         '--noconfirm',
         '--icon=icon.ico',
-        '--runtime-tmpdir=.\\temp',
 
         # 核心隐藏导入
         '--hidden-import=pandas',

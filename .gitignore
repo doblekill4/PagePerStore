@@ -38,3 +38,7 @@ orders_pickup_raw_debug.json
 
 # 真实环境验证脚本（会真发邮件/弹浏览器登录页，仅供本地手动测试）
 测试_失效应对实测.py
+
+# WorkBuddy skill 相关、项目后续工作用，本地保留但不随本项目上传
+compare_and_send.py
+config.py

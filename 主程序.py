@@ -1,13 +1,10 @@
 # 模块1：主程序入口 - 正式生产版
 import requests
-import logging
 from datetime import datetime
 
 from 认证管理 import AuthManager
 from 订单获取 import OrderFetcher
 from 数据处理 import DataProcessor
-from 报告生成 import ReportGenerator
-from 导出管理 import ExportManager
 from 配置 import 配置
 
 
@@ -29,8 +26,6 @@ class 主程序:
         self.auth_manager = AuthManager(self.session, self.base_url, self.headers, self.日志器)
         self.order_fetcher = OrderFetcher(self.session, self.base_url, self.headers, self.auth_manager, self.日志器)
         self.data_processor = DataProcessor(self.日志器)
-        self.report_generator = ReportGenerator(self.日志器)
-        self.export_manager = ExportManager(self.日志器)
 
     def 设置日志(self):
         """设置日志记录（统一到 日志管理：同目录、按天分文件、保留近 N 天）"""
@@ -156,7 +151,7 @@ class 主程序:
                 else:
                     self.日志器.warning(f"  ⚠️ 第{idx + 1}行: 未找到'自提'后缀")
 
-    def 执行(self, 查询日期=None, 获取次日=True, 是否导出剪贴板=True):
+    def 执行(self, 查询日期=None, 获取次日=True):
         """执行主程序 - 正式生产版（修复变量名）"""
         self.最后失败原因 = ""
         try:
@@ -182,12 +177,6 @@ class 主程序:
                 self.最后失败原因 = "订单数据处理失败"
                 self.日志器.error(self.最后失败原因)
                 return None
-
-            # 4. 导出到剪贴板（简洁版）
-            if 是否导出剪贴板:
-                self.日志器.info("正在复制数据到剪贴板...")
-                # 直接调用原本的 export_manager，因为 df 里已经有列了
-                self.export_manager.copy_data_to_clipboard(result['df'])
 
             return {
                 'orders': orders,

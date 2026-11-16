@@ -15,7 +15,6 @@
 命令行：
   python wps_kdocs.py --check                      # 检查 CLI/登录/表格连通（只读）
   python wps_kdocs.py --dry-run --tsv "..."        # 预览清洗后的增量，不写入
-  python wps_kdocs.py --from-clipboard --dry-run   # 从剪贴板读 TSV 预览
   python wps_kdocs.py --file data.tsv             # 从 TSV 文件写入增量
 """
 
@@ -194,15 +193,6 @@ def tsv转行(文本):
     return 行列表
 
 
-def 读剪贴板文本():
-    import win32clipboard
-    win32clipboard.OpenClipboard()
-    try:
-        return win32clipboard.GetClipboardData(win32clipboard.CF_UNICODETEXT) or ""
-    finally:
-        win32clipboard.CloseClipboard()
-
-
 def _补齐(行):
     新行 = ["" if 值 is None else str(值) for 值 in 行][:数据列数]
     新行 += [""] * (数据列数 - len(新行))
@@ -379,7 +369,7 @@ def 追加订单(df=None, tsv_text=None, data_list=None, dry_run=False, 日志�
             else:
                 新行列表 = [list(行) for 行 in data_list]
         else:
-            新行列表 = tsv转行(读剪贴板文本())
+            return {"ok": False, "message": "未提供数据：请传 df / tsv_text / data_list 之一"}
 
         行字典, 真实最后行, 已用末行 = 读尾部(配置, 文件标识)
         增量 = 清洗增量(新行列表, 行字典, 真实最后行)
@@ -439,7 +429,6 @@ def _命令行():
     解析器 = argparse.ArgumentParser(description="金山文档在线表格后台增量写入（kdocs-cli，无需浏览器）")
     解析器.add_argument("--check", action="store_true", help="检查 CLI/登录/表格连通（只读）")
     解析器.add_argument("--dry-run", action="store_true", help="只预览清洗结果，不写入")
-    解析器.add_argument("--from-clipboard", action="store_true", help="从系统剪贴板读取 TSV")
     解析器.add_argument("--file", help="从 TSV 文件读取")
     解析器.add_argument("--tsv", help="直接传入 TSV 文本")
     参数 = 解析器.parse_args()
@@ -472,10 +461,8 @@ def _命令行():
     elif 参数.file:
         with open(参数.file, "r", encoding="utf-8-sig") as f:
             文本 = f.read()
-    elif 参数.from_clipboard:
-        文本 = 读剪贴板文本()
     else:
-        解析器.error("请指定 --from-clipboard / --file / --tsv，或使用 --check")
+        解析器.error("请指定 --file / --tsv，或使用 --check")
         return 2
 
     结果 = 追加订单(tsv_text=文本, dry_run=参数.dry_run)

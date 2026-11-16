@@ -1,6 +1,5 @@
 # 模块4：数据处理模块 - 新平台版本
 import pandas as pd
-from datetime import datetime, timedelta
 import logging
 
 
@@ -281,13 +280,6 @@ class DataProcessor:
         df = df.replace({'^nan$': '', '^NaN$': ''}, regex=True)
 
         return df
-
-    def get_date_strings(self, use_today=False):
-        """获取日期字符串"""
-        if use_today:
-            return datetime.now().strftime('%Y.%m.%d')
-        else:
-            return (datetime.now() + timedelta(days=1)).strftime('%Y.%m.%d')
 
     def analyze_orders(self, orders):
         """分析订单数据"""

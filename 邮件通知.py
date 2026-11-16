@@ -118,22 +118,6 @@ class 邮件通知器:
             self.logger.error(traceback.format_exc())
             return False
 
-    def 发送成功通知(self, 任务描述):
-        """
-        发送成功通知
-        :param 任务描述: 任务描述，如"次日订单同步完成"
-        """
-        subject = f"【PagePerStore】{任务描述}"
-        content = f"""
-任务类型: {任务描述}
-执行结果: 成功
-
-详细信息:
-- 订单已成功导出并同步到WPS表格
-- 请登录WPS表格查看最新数据
-        """
-        return self._send_mail(subject, content, is_error=False)
-
     def 发送失败通知(self, 错误描述):
         """
         发送失败通知
@@ -165,12 +149,3 @@ class 邮件通知器:
         """
         return self._send_mail(subject, content, is_error=False)
 
-
-
-if __name__ == "__main__":
-    # 测试代码
-    print(配置说明)
-
-    # 取消下面的注释来测试
-    # notifier = 邮件通知器()
-    # notifier.发送测试邮件()

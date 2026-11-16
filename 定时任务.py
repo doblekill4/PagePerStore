@@ -8,13 +8,11 @@ import sys
 import tkinter as tk
 from tkinter import ttk, messagebox
 import threading
-import webbrowser
 
 # 添加当前目录到Python路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from 邮件通知 import 邮件通知器  # 新增
-from 月度微信订单筛选 import select_date_range, 执行完整订单查询
 from 配置向导 import 确保配置已完整
 from 配置 import 配置
 
@@ -228,8 +226,7 @@ class 订单调度器GUI:
             # 1. 抓取并处理订单（后台链路直接传 DataFrame，不经过系统剪贴板）
             from 主程序 import 主程序
             主程序实例 = 主程序(self.获取日志器())
-            订单结果 = 主程序实例.执行(
-                获取次日=是次日订单, 是否导出剪贴板=False)
+            订单结果 = 主程序实例.执行(获取次日=是次日订单)
             订单导出成功 = bool(订单结果)
 
             if not 订单导出成功:

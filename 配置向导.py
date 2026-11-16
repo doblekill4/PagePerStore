@@ -12,7 +12,6 @@ from tkinter import ttk, messagebox
 from 本地配置 import 加载配置, 取值, 获取配置文件路径, 获取程序目录
 
 平台必填项 = ["平台.用户名", "平台.密码", "平台.门店ID"]
-邮件选填项 = ["邮件.SENDER_EMAIL", "邮件.AUTHORIZATION_CODE", "邮件.RECIPIENTS"]
 
 默认BASE_URL = "https://wxapp.trtjkmall.com"
 

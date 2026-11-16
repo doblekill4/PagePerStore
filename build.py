@@ -68,15 +68,11 @@ def 强制打包():
         '--hidden-import=apscheduler.schedulers.background',
         '--hidden-import=apscheduler.triggers.cron',
         '--hidden-import=win32clipboard',
-        '--hidden-import=win32gui',
-        '--hidden-import=win32con',
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
 
-        # 排除未使用的 Qt5：pyperclip 源码含 Linux 后端的
-        # `from PyQt5.QtWidgets import QApplication`，PyInstaller 静态分析会
-        # 误收整个 PyQt5（28.46 MB）。当前工程零处使用 Qt，Windows 剪贴板
-        # 走 win32clipboard / ctypes，该分支不会执行，排除后不影响运行。
+        # 排除未使用的 Qt5：PyInstaller 静态分析可能经第三方库误收整个 PyQt5
+        # （28.46 MB）。当前工程零处使用 Qt，排除后不影响运行。
         '--exclude-module=PyQt5',
 
         # 添加所有Python文件
@@ -84,7 +80,6 @@ def 强制打包():
         '--add-data=认证管理.py;.',
         '--add-data=订单获取.py;.',
         '--add-data=数据处理.py;.',
-        '--add-data=导出管理.py;.',
         '--add-data=定时任务.py;.',
         '--add-data=配置.py;.',
         '--add-data=本地配置.py;.',
@@ -93,7 +88,6 @@ def 强制打包():
         '--add-data=日志管理.py;.',
         '--add-data=kdocs_auth.py;.',
         '--add-data=wps_kdocs.py;.',
-        '--add-data=报告生成.py;.',
 
         # 添加资源
         '--add-data=icon.ico;.',

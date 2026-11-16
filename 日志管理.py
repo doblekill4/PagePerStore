@@ -94,8 +94,3 @@ def 获取日志器(名称, 保留天数=None, 级别=logging.INFO, 自动清理
         清理旧日志(目录, 保留天数, 日志器)
     日志器缓存[键] = 日志器
     return 日志器
-
-
-def 当前日志文件(名称):
-    """供 UI 提示当前日志文件路径用。"""
-    return os.path.join(获取日志目录(), f"{名称}_{datetime.now().strftime('%Y%m%d')}.log")

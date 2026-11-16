@@ -163,7 +163,7 @@ def 收集必要信息(缺失项=None):
                                 if 变量['路径.日志保留天数'].get().strip().isdigit() else 30,
             },
         }
-        # 保留向导未涉及的扩展配置（如 WPS AirScript 后台写入），避免重写 config.json 时丢失
+        # 保留向导未涉及的扩展配置段，避免重写 config.json 时丢失
         for 键, 值 in 已有.items():
             if 键 not in 数据:
                 数据[键] = 值

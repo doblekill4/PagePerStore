@@ -32,21 +32,9 @@ class 订单调度器GUI:
         self.当前分辨率 = self._获取系统分辨率()
         self.邮件通知器 = 邮件通知器()  # 新增
 
-        try:
-            threading.Thread(target=self._启动_wps服务, daemon=True).start()
-        except:
-            pass
-
         self.设置日志()
         self.创建界面()
         self.设置窗口图标()
-
-    def _启动_wps服务(self):
-        try:
-            from wps_playwright import start_wps_keep_alive
-            start_wps_keep_alive()
-        except Exception as e:
-            print("WPS 启动异常：", e)
 
     def 设置窗口图标(self):
         try:
@@ -79,13 +67,6 @@ class 订单调度器GUI:
 
     def 获取日志器(self):
         return self.日志 if hasattr(self, '日志') else logging.getLogger(__name__)
-
-    def 当前日志路径(self):
-        try:
-            from 日志管理 import 当前日志文件
-            return 当前日志文件("订单调度器")
-        except Exception:
-            return "程序目录/日志/订单调度器_日期.log"
 
     def 设置日志(self):
         from 日志管理 import 获取日志器
@@ -227,34 +208,28 @@ class 订单调度器GUI:
             订单类型 = "次日" if 是次日订单 else "今日"
             self.更新状态(f"开始执行{订单类型}订单任务...")
 
-            # 同步通道：优先 kdocs-cli（读表清洗后只写增量，纯后台），
-            # 其次 AirScript，最后回退浏览器粘贴
+            # 同步通道：只用 kdocs-cli（读表清洗后只写增量，纯后台）。
+            # AirScript / 浏览器粘贴两条兜底链路已移除。
             try:
                 from wps_kdocs import 配置就绪 as Kdocs就绪
                 使用Kdocs = Kdocs就绪()
             except Exception as e:
-                self.更新状态(f"⚠️ kdocs-cli 通道不可用：{e}")
+                self.更新状态(f"❌ kdocs-cli 通道不可用：{e}")
                 使用Kdocs = False
 
-            try:
-                from wps_airscript import 配置就绪 as AirScript就绪
-                使用AirScript = (not 使用Kdocs) and AirScript就绪()
-            except Exception:
-                使用AirScript = False
+            if not 使用Kdocs:
+                self.更新状态("❌ kdocs-cli 未就绪：请检查 config.json 的 WPS_KDOCS 配置与 CLI 安装")
+                if not 是否手动 and self.邮件通知器:
+                    self.邮件通知器.发送失败通知("kdocs-cli 未就绪，订单未同步")
+                return False
 
-            if 使用Kdocs:
-                同步方式 = "kdocs-cli后台增量写入"
-            elif 使用AirScript:
-                同步方式 = "AirScript后台写入"
-            else:
-                同步方式 = "浏览器粘贴"
-            self.更新状态(f"WPS 同步方式：{同步方式}")
+            self.更新状态("WPS 同步方式：kdocs-cli后台增量写入")
 
             # 1. 抓取并处理订单（后台链路直接传 DataFrame，不经过系统剪贴板）
             from 主程序 import 主程序
             订单结果 = 主程序(self.获取日志器()).执行(
                 获取次日=是次日订单,
-                是否导出剪贴板=not (使用Kdocs or 使用AirScript),
+                是否导出剪贴板=False,
             )
             订单导出成功 = bool(订单结果)
 
@@ -265,26 +240,13 @@ class 订单调度器GUI:
                     self.邮件通知器.发送失败通知(f"{订单类型}订单导出失败")
                 return False
 
-            # 2. 同步到WPS
-            self.更新状态(f"开始同步{订单类型}订单到顺丰表格（{同步方式}）...")
-            失败原因 = ""
-            if 使用Kdocs:
-                import wps_kdocs
-                # 手动点按钮：token 失效直接拉起 CLI 登录；定时自动：只发邮件不弹窗
-                同步成功 = wps_kdocs.wps_append_data(df=订单结果['df'], 日志器=self.获取日志器(),
-                                                  是否手动=是否手动)
-                if not 同步成功:
-                    失败原因 = wps_kdocs.最后失败原因
-            elif 使用AirScript:
-                from wps_airscript import wps_append_data as AirScript追加
-                同步成功 = AirScript追加(df=订单结果['df'], 日志器=self.获取日志器())
-                if not 同步成功:
-                    失败原因 = f"AirScript 后台写入未成功，请查看日志 {self.当前日志路径()}"
-            else:
-                from wps_playwright import wps_append_data
-                同步成功 = wps_append_data(is_today_order=not 是次日订单)
-                if not 同步成功:
-                    失败原因 = f"浏览器粘贴写入未成功，请查看日志 {self.当前日志路径()}"
+            # 2. 同步到WPS（仅 kdocs-cli）
+            self.更新状态(f"开始同步{订单类型}订单到顺丰表格（kdocs-cli后台增量写入）...")
+            import wps_kdocs
+            # 手动点按钮：token 失效直接拉起 CLI 登录；定时自动：只发邮件不弹窗
+            同步成功 = wps_kdocs.wps_append_data(df=订单结果['df'], 日志器=self.获取日志器(),
+                                              是否手动=是否手动)
+            失败原因 = wps_kdocs.最后失败原因 if not 同步成功 else ""
 
             if 同步成功:
                 self.更新状态(f"✅ {订单类型}订单已同步到顺丰表格")
@@ -508,7 +470,7 @@ class 订单调度器GUI:
     def _调度器执行包装(self):
         """调度器执行的包装方法，确保UI更新在正确线程"""
         # 调度器在后台线程运行，需要确保UI更新在主线程
-        # 主程序/wps_playwright 已顺序处理，线程安全由本线程保证
+        # 主程序/kdocs-cli 已顺序处理，线程安全由本线程保证
         self.智能执行任务()
     def 停止调度器(self):
         try:
@@ -520,11 +482,6 @@ class 订单调度器GUI:
             pass
 
     def 退出程序(self):
-        try:
-            from wps_playwright import stop_wps_keep_alive
-            stop_wps_keep_alive()
-        except:
-            pass
         try:
             if self.调度器.running:
                 self.调度器.shutdown()

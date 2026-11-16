@@ -25,16 +25,6 @@ def 生成配置文件(输出目录):
         else:
             print("⚠️ 未找到 config.json / config.example.json，未生成配置文件")
 
-        # 把 AirScript 脚本一并输出到 exe 同目录，方便复制到金山文档脚本编辑器
-        AirScript源 = os.path.join(根目录, "wps_airscript_append.js")
-        if os.path.exists(AirScript源):
-            try:
-                os.makedirs(输出目录, exist_ok=True)
-                目标脚本 = os.path.join(输出目录, "wps_airscript_append.js")
-                shutil.copy(AirScript源, 目标脚本)
-                print(f"📄 AirScript 脚本已输出: {目标脚本}")
-            except Exception as e:
-                print(f"⚠️ 复制 AirScript 脚本失败: {e}")
     except Exception as e:
         print(f"⚠️ 生成配置文件失败: {e}")
 
@@ -82,18 +72,12 @@ def 强制打包():
         '--hidden-import=win32con',
         '--hidden-import=tkinter',
         '--hidden-import=tkinter.ttk',
-        '--hidden-import=playwright',
-        '--hidden-import=playwright.sync_api',
-        '--hidden-import=asyncio',
 
         # 排除未使用的 Qt5：pyperclip 源码含 Linux 后端的
         # `from PyQt5.QtWidgets import QApplication`，PyInstaller 静态分析会
         # 误收整个 PyQt5（28.46 MB）。当前工程零处使用 Qt，Windows 剪贴板
         # 走 win32clipboard / ctypes，该分支不会执行，排除后不影响运行。
         '--exclude-module=PyQt5',
-
-        # 收集 Playwright
-        '--collect-all=playwright',
 
         # 添加所有Python文件
         '--add-data=主程序.py;.',
@@ -108,9 +92,6 @@ def 强制打包():
         '--add-data=邮件通知.py;.',
         '--add-data=日志管理.py;.',
         '--add-data=kdocs_auth.py;.',
-        '--add-data=wps_playwright.py;.',
-        '--add-data=wps_airscript.py;.',
-        '--add-data=wps_airscript_append.js;.',
         '--add-data=wps_kdocs.py;.',
         '--add-data=报告生成.py;.',
 

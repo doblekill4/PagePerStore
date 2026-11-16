@@ -81,8 +81,8 @@ def 读配置():
         "启用": str(取("enabled", True)).strip().lower() not in ("false", "0", "no", "off", ""),
         "cli_path": str(取("cli_path", "") or ""),
         "file_id": str(取("file_id", "") or "").strip(),
-        # 默认值与 wps_playwright.py 中的目标表格链接一致：旧 config.json 没有
-        # WPS_KDOCS 段时也能直接启用新链路；换表格时在 config.json 覆盖即可
+        # 默认目标表格链接：旧 config.json 没有 WPS_KDOCS 段时也能直接启用；
+        # 换表格时在 config.json 覆盖即可
         "link_id": str(取("link_id", "ceIalhfmfGZ6") or "").strip(),
         "sheet_id": 工作表ID,
         "sheet_name": str(取("sheet_name", "服务一店一页") or "服务一店一页"),
@@ -417,7 +417,7 @@ def 追加订单(df=None, tsv_text=None, data_list=None, dry_run=False, 日志�
 
 
 def wps_append_data(data_list=None, is_today_order=True, df=None, tsv_text=None, 日志器=None, 是否手动=False):
-    """兼容 wps_playwright.wps_append_data 的入口，返回 bool。
+    """兼容旧调用形态的入口（历史名沿用自已移除的 wps_playwright），返回 bool。
 
     失败原因保留在 module 级 `最后失败原因`，供 UI 状态栏读取（返回值仍是 bool，
     不破坏兼容契约）。

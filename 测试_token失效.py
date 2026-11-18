@@ -10,7 +10,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 import kdocs_auth
 import wps_kdocs
@@ -188,20 +188,23 @@ class Token失效测试(unittest.TestCase):
                         f"状态栏未显示失败原因: {界面.状态}")
 
     def test_ui_status_shows_export_failure_reason(self):
-        """导出失败（如当日 0 单）时，状态栏显示主程序带出的具体原因。"""
+        """通信失败导致导出失败时，状态栏显示主程序带出的具体原因并发邮件。"""
         import 主程序 as 主程序模块
         import 定时任务 as 定时任务模块
 
+        class 假邮件通知器:
+            def __init__(self): self.发送 = []
+            def 发送失败通知(self, 文本): self.发送.append(文本)
         class 假界面:
             def __init__(self):
-                self.邮件通知器 = None
+                self.邮件通知器 = 假邮件通知器()
                 self.状态 = []
             def _禁用所有按钮(self): pass
             def _启用所有按钮(self): pass
             def 更新状态(self, 文本): self.状态.append(文本)
             def 获取日志器(self): return None
 
-        原因 = "未获取到订单数据（平台当日无符合条件的配送/自提订单）"
+        原因 = "订单查询通信失败（API 请求失败/重试耗尽），未获取到订单数据"
         假主程序 = type("假主程序", (), {
             "执行": lambda self, **kw: None,
             "最后失败原因": 原因,
@@ -209,10 +212,62 @@ class Token失效测试(unittest.TestCase):
         with patch.object(主程序模块, "主程序", return_value=假主程序), \
              patch.object(wps_kdocs, "配置就绪", return_value=True):
             界面 = 假界面()
-            成功 = 定时任务模块.订单调度器GUI._执行完整流程(界面, 是否手动=True)
+            成功 = 定时任务模块.订单调度器GUI._执行完整流程(界面, 是否手动=False)
         self.assertFalse(成功)
         self.assertTrue(any(原因 in 文本 and "导出失败" in 文本 for 文本 in 界面.状态),
                         f"状态栏未显示导出失败原因: {界面.状态}")
+        self.assertEqual(len(界面.邮件通知器.发送), 1, "通信失败应发一封邮件")
+
+    def test_no_orders_normal_does_not_send_mail(self):
+        """通信正常但当日 0 单：不算失败、不发邮件、跳过同步。"""
+        import 主程序 as 主程序模块
+        import 定时任务 as 定时任务模块
+
+        class 假邮件通知器:
+            def __init__(self): self.发送 = []
+            def 发送失败通知(self, 文本): self.发送.append(文本)
+        class 假界面:
+            def __init__(self):
+                self.邮件通知器 = 假邮件通知器()
+                self.状态 = []
+            def _禁用所有按钮(self): pass
+            def _启用所有按钮(self): pass
+            def 更新状态(self, 文本): self.状态.append(文本)
+            def 获取日志器(self): return None
+
+        空单结果 = {"空单正常": True, "orders": [], "df": None}
+        假主程序 = type("假主程序", (), {"执行": lambda self, **kw: 空单结果})()
+        with patch.object(主程序模块, "主程序", return_value=假主程序), \
+             patch.object(wps_kdocs, "配置就绪", return_value=True), \
+             patch.object(wps_kdocs, "wps_append_data") as 模拟追加:
+            界面 = 假界面()
+            成功 = 定时任务模块.订单调度器GUI._执行完整流程(界面, 是否手动=False)
+        self.assertTrue(成功, "正常 0 单不算失败")
+        self.assertEqual(len(界面.邮件通知器.发送), 0, "正常 0 单不应发邮件")
+        模拟追加.assert_not_called()
+        self.assertTrue(any("无订单" in 文本 and "通信正常" in 文本 for 文本 in 界面.状态),
+                        f"状态栏未提示无订单: {界面.状态}")
+
+    def test_main_program_zero_orders_vs_comm_failure(self):
+        """主程序：通信正常 0 单返回空单正常；通信失败返回 None 并带原因。"""
+        import 主程序 as 主程序模块
+
+        def 造实例(通信正常):
+            实例 = 主程序模块.主程序(日志器=Mock())
+            实例.登录系统 = Mock(return_value=True)
+            实例.获取订单数据 = Mock(return_value=[])
+            实例.订单查询通信正常 = 通信正常
+            return 实例
+
+        正常实例 = 造实例(True)
+        结果 = 正常实例.执行()
+        self.assertTrue(结果.get('空单正常'))
+        self.assertEqual(正常实例.最后失败原因, "")
+
+        失败实例 = 造实例(False)
+        结果2 = 失败实例.执行()
+        self.assertIsNone(结果2)
+        self.assertIn("通信失败", 失败实例.最后失败原因)
 
     def test_relogin_restores_counter(self):
         """重登记录新有效期后，失效标记清除、计数重新开始。"""

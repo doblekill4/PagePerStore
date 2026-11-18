@@ -13,6 +13,9 @@ class OrderFetcher:
         self.base_url = base_url
         self.headers = headers
         self.auth_manager = auth_manager
+        # 最近一次 _fetch_orders 是否通信成功（含成功返回 0 条）；
+        # 用于区分「正常无订单」与「通信失败」，避免无单被误报为错误
+        self.最后查询通信正常 = True
 
         if logger:
             self.logger = logger
@@ -113,8 +116,10 @@ class OrderFetcher:
 
     def get_delivery_orders(self, status=None, delivery_date=None, page_size=100, max_retries=2):
         """获取配送订单数据，支持多个状态 - 适配新平台API"""
+        self.最后查询通信正常 = True
         if not self.auth_manager.ensure_valid_token():
             self.logger.error("无法获取有效的token，无法继续获取订单")
+            self.最后查询通信正常 = False
             return None
 
         # 支持状态列表
@@ -137,10 +142,12 @@ class OrderFetcher:
         start_ts, end_ts = self.获取时间戳范围(delivery_date)
         if not start_ts or not end_ts:
             self.logger.error("日期转换失败，无法获取订单")
+            self.最后查询通信正常 = False
             return None
 
-        # 获取所有状态的订单
+        # 获取所有状态的订单；只要有一个状态通信成功（哪怕 0 条）就算链路正常
         all_orders = []
+        任一通信成功 = False
         for status_value in status_list:
             order_url = f"{self.base_url}{配置.ORDER_API}"
 
@@ -157,8 +164,11 @@ class OrderFetcher:
             }
 
             orders = self._fetch_orders(order_url, order_data, max_retries, f"配送-状态{status_value}")
-            if orders:
-                all_orders.extend(orders)
+            if orders is not None:
+                任一通信成功 = True
+                if orders:
+                    all_orders.extend(orders)
+        self.最后查询通信正常 = 任一通信成功
 
         # Debug: dump delivery raw orders
         try:
@@ -187,8 +197,10 @@ class OrderFetcher:
 
     def get_pickup_orders(self, status=None, pickup_date=None, page_size=100, max_retries=2):
         """获取自提订单数据，支持自动重试 - 适配新平台API"""
+        self.最后查询通信正常 = True
         if not self.auth_manager.ensure_valid_token():
             self.logger.error("无法获取有效的token，无法继续获取订单")
+            self.最后查询通信正常 = False
             return None
 
         # 支持状态列表
@@ -211,10 +223,12 @@ class OrderFetcher:
         start_ts, end_ts = self.获取时间戳范围(pickup_date)
         if not start_ts or not end_ts:
             self.logger.error("日期转换失败，无法获取订单")
+            self.最后查询通信正常 = False
             return None
 
-        # 获取所有状态的订单
+        # 获取所有状态的订单；只要有一个状态通信成功（哪怕 0 条）就算链路正常
         all_orders = []
+        任一通信成功 = False
         for status_value in status_list:
             order_url = f"{self.base_url}{配置.ORDER_API}"
 
@@ -231,8 +245,11 @@ class OrderFetcher:
             }
 
             orders = self._fetch_orders(order_url, order_data, max_retries, f"自提-状态{status_value}")
-            if orders:
-                all_orders.extend(orders)
+            if orders is not None:
+                任一通信成功 = True
+                if orders:
+                    all_orders.extend(orders)
+        self.最后查询通信正常 = 任一通信成功
 
         # Debug: dump pickup raw orders
         try:
@@ -330,12 +347,14 @@ class OrderFetcher:
                                 total_orders = data.get('total', len(orders))
                                 self.logger.info(f"成功获取{order_type}订单数据！")
                                 self.logger.info(f"找到 {len(orders)} 条{order_type}订单 (总共 {total_orders} 条)")
+                                self.最后查询通信正常 = True
                                 return orders
                             elif isinstance(data, list):
                                 # data直接是列表的情况
                                 orders = data
                                 self.logger.info(f"成功获取{order_type}订单数据！")
                                 self.logger.info(f"找到 {len(orders)} 条{order_type}订单")
+                                self.最后查询通信正常 = True
                                 return orders
                             else:
                                 self.logger.warning(f"data字段格式异常: {type(data)}")
@@ -370,6 +389,7 @@ class OrderFetcher:
                     time.sleep(2)
 
         self.logger.error(f"经过{max_retries}次尝试后，仍然无法获取{order_type}订单数据")
+        self.最后查询通信正常 = False
         return None
 
 # 使用示例

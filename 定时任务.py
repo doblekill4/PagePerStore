@@ -237,6 +237,11 @@ class 订单调度器GUI:
                     self.邮件通知器.发送失败通知(f"{订单类型}订单导出失败：{原因}")
                 return False
 
+            # 通信正常但当日无单：正常现象，跳过同步、不发邮件、不算失败
+            if 订单结果.get('空单正常'):
+                self.更新状态(f"ℹ️ {订单类型}无订单（通信正常，无需同步）")
+                return True
+
             # 2. 同步到WPS（仅 kdocs-cli）
             self.更新状态(f"开始同步{订单类型}订单到顺丰表格（kdocs-cli后台增量写入）...")
             import wps_kdocs

@@ -12,6 +12,7 @@ class 主程序:
     def __init__(self, 日志器=None):
         """初始化主程序"""
         self.最后失败原因 = ""
+        self.订单查询通信正常 = True
         if 日志器:
             self.日志器 = 日志器
         else:
@@ -52,6 +53,7 @@ class 主程序:
 
     def 获取订单数据(self, 查询日期=None, 获取次日=True):
         """获取订单数据 - 正式版"""
+        self.订单查询通信正常 = True
         self.日志器.info("=" * 50)
 
         if not 查询日期:
@@ -68,6 +70,7 @@ class 主程序:
             delivery_date=查询日期,
             page_size=配置.页面大小
         )
+        配送通信正常 = self.order_fetcher.最后查询通信正常
 
         self.日志器.info("获取自提订单(待发货+待收货)...")
         自提订单 = self.order_fetcher.get_pickup_orders(
@@ -75,6 +78,8 @@ class 主程序:
             pickup_date=查询日期,
             page_size=配置.页面大小
         )
+        自提通信正常 = self.order_fetcher.最后查询通信正常
+        self.订单查询通信正常 = 配送通信正常 and 自提通信正常
 
         all_orders = []
         order_ids = set()
@@ -167,8 +172,20 @@ class 主程序:
             orders = self.获取订单数据(查询日期, 获取次日)
 
             if not orders:
-                self.最后失败原因 = "未获取到订单数据（平台当日无符合条件的配送/自提订单）"
-                self.日志器.warning(self.最后失败原因)
+                if self.订单查询通信正常:
+                    # 通信正常、当日确实无单：不是错误，不触发邮件告警
+                    self.日志器.info("通信正常，当日无符合条件的订单（正常现象，不告警）")
+                    return {
+                        '空单正常': True,
+                        'orders': [],
+                        'df': None,
+                        'query_date': 查询日期 or (
+                            self.auth_manager.get_tomorrow_date() if 获取次日 else self.auth_manager.get_today_date()),
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    }
+                # 通信链路异常导致拿不到数据：视为错误
+                self.最后失败原因 = "订单查询通信失败（API 请求失败/重试耗尽），未获取到订单数据"
+                self.日志器.error(self.最后失败原因)
                 return None
 
             # ✅ 修复点2：确保把 orders 传进去

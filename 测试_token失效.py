@@ -282,6 +282,38 @@ class Token失效测试(unittest.TestCase):
         self.assertNotIn("invalid_reason", 新数据)
         self.assertAlmostEqual(剩余, 7200, delta=5)
 
+    def test_all_cli_calls_hide_console_window(self):
+        """所有 kdocs-cli 子进程调用都带隐藏窗口标志，避免运行时闪出命令提示符。"""
+        import subprocess
+        import kdocs_auth
+        import wps_kdocs
+
+        期望标志 = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        self.assertEqual(wps_kdocs._无窗口标志, 期望标志)
+        self.assertEqual(kdocs_auth._无窗口标志, 期望标志)
+
+        # wps_kdocs._cli
+        配置 = wps_kdocs.读配置()
+        with patch.object(wps_kdocs, "_cli路径", return_value="fake-cli.exe"), \
+             patch.object(wps_kdocs.subprocess, "run", return_value=Mock(
+                 returncode=0, stdout='{"code":0}', stderr="")) as 模拟运行:
+            wps_kdocs._cli(配置, "drive", "search-files")
+        self.assertEqual(模拟运行.call_args.kwargs.get("creationflags"), 期望标志)
+
+        # kdocs_auth.认证状态
+        with patch.object(kdocs_auth, "cli路径", return_value="fake-cli.exe"), \
+             patch.object(kdocs_auth.subprocess, "run", return_value=Mock(
+                 returncode=0, stdout='{"authenticated":true}', stderr="")) as 模拟运行:
+            kdocs_auth.认证状态()
+        self.assertEqual(模拟运行.call_args.kwargs.get("creationflags"), 期望标志)
+
+        # kdocs_auth._写入密钥链
+        with patch.object(kdocs_auth, "cli路径", return_value="fake-cli.exe"), \
+             patch.object(kdocs_auth.subprocess, "run", return_value=Mock(
+                 returncode=0, stdout="", stderr="")) as 模拟运行:
+            kdocs_auth._写入密钥链("fake-token")
+        self.assertEqual(模拟运行.call_args.kwargs.get("creationflags"), 期望标志)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

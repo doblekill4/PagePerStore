@@ -37,6 +37,9 @@ from 本地配置 import 加载配置, 取值, 获取配置文件路径
 单批操作数 = 800       # 单次 update-range-data 的操作条数上限
 
 _文件ID缓存 = ""
+# Windows 下调用 kdocs-cli（控制台程序）时隐藏窗口，避免定时任务 / GUI 运行时闪黑框；
+# 非 Windows 平台该常量不存在，退化为 0 不影响行为。
+_无窗口标志 = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _输出(日志器, 级别, 消息):
@@ -118,7 +121,7 @@ def _cli(配置, 服务, 动作, 参数=None):
     try:
         结果 = subprocess.run(
             命令, capture_output=True, text=True, encoding="utf-8",
-            env=_环境(), timeout=配置["timeout"],
+            env=_环境(), timeout=配置["timeout"], creationflags=_无窗口标志,
         )
     except subprocess.TimeoutExpired:
         return {"code": -1, "message": f"kdocs-cli 调用超时（{服务}.{动作}）"}

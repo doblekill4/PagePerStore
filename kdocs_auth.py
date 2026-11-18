@@ -40,6 +40,8 @@ from pathlib import Path
 登录模板 = "https://account.wps.cn/login?cb={cb}"
 元数据路径 = Path(os.environ.get("LOCALAPPDATA") or str(Path.home())) / "PagePerStore" / "kdocs_token_meta.json"
 告警提前秒 = 7 * 24 * 3600
+# Windows 下调用 kdocs-cli（控制台程序）时隐藏窗口，避免闪黑框；非 Windows 退化为 0。
+_无窗口标志 = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 
 def _输出(日志器, 级别, 消息):
@@ -137,7 +139,7 @@ def 认证状态():
     try:
         结果 = subprocess.run(
             [路径, "auth", "status"], capture_output=True, text=True,
-            encoding="utf-8", timeout=30, env=环境,
+            encoding="utf-8", timeout=30, env=环境, creationflags=_无窗口标志,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         return False, f"auth status 调用失败: {e}"
@@ -159,6 +161,7 @@ def _写入密钥链(token):
         结果 = subprocess.run(
             [路径, "auth", "set-token", "-"], input=token,
             capture_output=True, text=True, encoding="utf-8", timeout=30,
+            creationflags=_无窗口标志,
         )
     except (OSError, subprocess.TimeoutExpired):
         return False

@@ -28,9 +28,8 @@ class 订单调度器GUI:
         self.调度器 = BackgroundScheduler()
         self._强制保持DPI设置()
         self.当前分辨率 = self._获取系统分辨率()
-        self.邮件通知器 = 邮件通知器()  # 新增
-
         self.设置日志()
+        self.邮件通知器 = 邮件通知器(logger=self.获取日志器())  # 新增
         self.创建界面()
         self.设置窗口图标()
 
@@ -254,8 +253,11 @@ class 订单调度器GUI:
                 self.更新状态(f"✅ {订单类型}订单已同步到顺丰表格")
                 return True
             else:
-                self.更新状态(f"❌ {订单类型}订单同步失败：{失败原因}" if 失败原因
-                              else f"❌ {订单类型}订单同步失败")
+                失败消息 = (f"{订单类型}订单同步失败：{失败原因}" if 失败原因
+                          else f"{订单类型}订单同步失败")
+                self.更新状态(f"❌ {失败消息}")
+                if not 是否手动 and self.邮件通知器:
+                    self.邮件通知器.发送失败通知(失败消息)
                 return False
 
         except Exception as e:

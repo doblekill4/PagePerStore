@@ -34,6 +34,8 @@
     "sheet_id": 4,
     "sheet_name": "服务一店一页",
     "tail_rows": 200,
-    "timeout": 90
+    "timeout": 90,
+    "retry_times": 3,
+    "retry_interval": 2
   }
 }

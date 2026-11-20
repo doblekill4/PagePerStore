@@ -34,7 +34,10 @@ from 本地配置 import 加载配置, 取值, 获取配置文件路径
 数据列数 = 14          # A~N；DataFrame 实际 13 列（A~M），N 列恒为空
 判重列 = range(1, 14)  # B~N，与云端「删除一店一页完全相同的行」规则一致
 日期列 = 3             # D 列（配送或自提日期）
-单批操作数 = 800       # 单次 update-range-data 的操作条数上限
+# kdocs-cli 的 update-range-data 单次最多接受 100 条 op，超过会整单拒绝
+单批操作数 = 100
+默认重试次数 = 3
+默认重试间隔秒 = 2
 
 _文件ID缓存 = ""
 # Windows 下调用 kdocs-cli（控制台程序）时隐藏窗口，避免定时任务 / GUI 运行时闪黑框；
@@ -78,6 +81,14 @@ def 读配置():
         工作表ID = int(取("sheet_id", 4))
     except (TypeError, ValueError):
         工作表ID = 4
+    try:
+        重试次数 = max(1, int(取("retry_times", 默认重试次数)))
+    except (TypeError, ValueError):
+        重试次数 = 默认重试次数
+    try:
+        重试间隔 = max(0, float(取("retry_interval", 默认重试间隔秒)))
+    except (TypeError, ValueError):
+        重试间隔 = 默认重试间隔秒
 
     return {
         "启用": str(取("enabled", True)).strip().lower() not in ("false", "0", "no", "off", ""),
@@ -90,6 +101,8 @@ def 读配置():
         "sheet_name": str(取("sheet_name", "服务一店一页") or "服务一店一页"),
         "tail_rows": max(50, 尾部行数),
         "timeout": max(20, 超时),
+        "retry_times": 重试次数,
+        "retry_interval": 重试间隔,
     }
 
 
@@ -295,7 +308,7 @@ def 检查目标区域(配置, 文件标识, 起始行, 行数):
     return True, ""
 
 
-def 写入增量(配置, 文件标识, 增量, 起始行):
+def 写入增量(配置, 文件标识, 增量, 起始行, 日志器=None):
     操作 = []
     for i, 行 in enumerate(增量):
         for c, 值 in enumerate(行[:数据列数]):
@@ -308,13 +321,32 @@ def 写入增量(配置, 文件标识, 增量, 起始行):
                 "formula": 公式,
             })
 
+    重试次数 = max(1, int(配置.get("retry_times", 默认重试次数)))
+    重试间隔 = max(0, float(配置.get("retry_interval", 默认重试间隔秒)))
+
     for 批起始 in range(0, len(操作), 单批操作数):
-        响应 = _cli(配置, "sheet", "update-range-data", {
-            "file_id": 文件标识, "sheetId": 配置["sheet_id"],
-            "rangeData": 操作[批起始:批起始 + 单批操作数],
-        })
-        if 响应.get("code") != 0:
-            return False, f"写入失败（第 {批起始 // 单批操作数 + 1} 批）: {响应.get('message')}"
+        批号 = 批起始 // 单批操作数 + 1
+        批数据 = 操作[批起始:批起始 + 单批操作数]
+        最后错误 = ""
+
+        for 尝试 in range(1, 重试次数 + 1):
+            响应 = _cli(配置, "sheet", "update-range-data", {
+                "file_id": 文件标识, "sheetId": 配置["sheet_id"],
+                "rangeData": 批数据,
+            })
+            if 响应.get("code") == 0:
+                if 尝试 > 1:
+                    _输出(日志器, "info", f"第 {批号} 批第 {尝试} 次尝试成功")
+                break
+
+            最后错误 = str(响应.get("message") or "未知错误")
+            if 尝试 < 重试次数:
+                _输出(日志器, "warning",
+                      f"第 {批号} 批第 {尝试} 次写入失败，{重试间隔}秒后重试：{最后错误}")
+                time.sleep(重试间隔)
+        else:
+            return False, f"写入失败（第 {批号} 批，已重试 {重试次数} 次）: {最后错误}"
+
     return True, ""
 
 
@@ -394,7 +426,7 @@ def 追加订单(df=None, tsv_text=None, data_list=None, dry_run=False, 日志�
         if not 检查通过:
             return {"ok": False, "message": 错误, "start_row": 起始行}
 
-        成功, 错误 = 写入增量(配置, 文件标识, 增量, 起始行)
+        成功, 错误 = 写入增量(配置, 文件标识, 增量, 起始行, 日志器=日志器)
         if not 成功:
             return {"ok": False, "message": 错误, "start_row": 起始行}
 
